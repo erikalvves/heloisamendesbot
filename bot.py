@@ -31,14 +31,14 @@ PRODUTOS = {
         "valor_exibicao": "5,00",
         "nome": "Pack de Fotos",
         "descricao": "Aqui estão as fotos mais ousadas...",
-        "entrega": "https://drive.google.com/drive/folders/1GPPoCyVd2k1XgEC_WWrzi43LciSlVtQF?usp=sharing"
+        "entrega": "COLE_SEU_LINK_AQUI_FOTOS"
     },
     "videos": {
         "valor_centavos": 1200,
         "valor_exibicao": "12,00",
         "nome": "Pack de Vídeos",
         "descricao": "Vídeos exclusivos esperando por você...",
-        "entrega": "https://drive.google.com/drive/folders/1M7UtYvfNt5Ue_m43RnLLyhCRNZ0txAwM?usp=sharing"
+        "entrega": "COLE_SEU_LINK_AQUI_VIDEOS"
     }
 }
 
@@ -159,13 +159,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(texto, reply_markup=InlineKeyboardMarkup(teclado))
 
-# ================= FLUXO DE COMPRA COM CONFIRMAÇÃO =================
+# ================= COMPRA COM CONFIRMAÇÃO =================
 async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = str(update.effective_user.id)
 
-    # 1️⃣ Usuário escolheu o produto → mostra prévia + confirmação
     if query.data.startswith("comprar_"):
         produto_id = query.data.replace("comprar_", "")
         prod = PRODUTOS[produto_id]
@@ -176,21 +175,15 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"{prod['descricao']}\n\n"
             "Confirma a compra?"
         )
-        
         teclado = [
             [
                 InlineKeyboardButton("✅ Confirmar", callback_data=f"confirmar_{produto_id}"),
                 InlineKeyboardButton("← Voltar", callback_data="inicio")
             ]
         ]
-        
-        await query.edit_message_text(
-            texto,
-            reply_markup=InlineKeyboardMarkup(teclado)
-        )
+        await query.edit_message_text(texto, reply_markup=InlineKeyboardMarkup(teclado))
         return
 
-    # 2️⃣ Usuário confirmou → gera o PIX
     if query.data.startswith("confirmar_"):
         produto_id = query.data.replace("confirmar_", "")
         prod = PRODUTOS[produto_id]
@@ -223,7 +216,6 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
 
-    # 3️⃣ Voltar ao início
     if query.data == "inicio":
         await start(update, context)
         return
@@ -265,40 +257,49 @@ def webhook():
 def home():
     return "✅ Webhook ativo e funcionando!"
 
-# ================= INICIALIZAÇÃO =================
+# ================= INICIALIZAÇÃO — CORRIGINDO O CONFLITO =================
 application = None
 
-def main():
+def iniciar_bot():
     global application
-
+    
+    # Verifica se já existe instância rodando
+    if application is not None:
+        print("⚠️ Bot já rodando — ignorando inicialização duplicada")
+        return
+    
     for tentativa in range(5):
         try:
             print(f"🔄 Iniciando bot... ({tentativa+1}/5)")
+            
             application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-
+            
             application.add_handler(CommandHandler("start", start))
             application.add_handler(CallbackQueryHandler(processo_compra))
-
+            
             print("✅ Bot rodando! Aguardando mensagens...")
-
+            
             application.run_polling(
                 drop_pending_updates=True,
                 close_loop=True,
                 allowed_updates=["message", "callback_query"],
-                bootstrap_retries=3
+                bootstrap_retries=0,  # Não tenta reconectar automaticamente
+                read_timeout=30,
+                write_timeout=30
             )
             break
-
+            
         except Exception as erro:
             print(f"⚠️ Erro: {erro}")
+            application = None
             time.sleep(5)
 
 if __name__ == "__main__":
     from threading import Thread
-
+    
     def rodar_flask():
         porta = int(os.getenv("PORT", 10000))
-        app.run(host="0.0.0.0", port=porta)
-
+        app.run(host="0.0.0.0", port=porta, use_reloader=False)  # use_reloader=False = SEM DUPLICAÇÃO!
+    
     Thread(target=rodar_flask, daemon=True).start()
-    main()
+    iniciar_bot()
