@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-PURINCASH_API_KEY = os.getenv("PURINCASH_API_KEY")
-PURINCASH_WEBHOOK_SECRET = os.getenv("PURINCASH_WEBHOOK_SECRET")
-PURINCASH_CALLBACK_URL = os.getenv("PURINCASH_CALLBACK_URL")
+PURINCASH_API_KEY = os.getenv("ps_live_0585c049183e39d4b4a5a25bed68e26d8422949ef0d27ae9fc5b6ea7f7cfead1")
+PURINCASH_WEBHOOK_SECRET = os.getenv("f083f2aa6f38bb380894779fc1c3aaefab33d61705aa06d0")
+PURINCASH_CALLBACK_URL = os.getenv("https://heloisamendesbot.onrender.com/webhook-purincash")
 
 BASE_URL = "https://api.purincash.com/v1"
 
