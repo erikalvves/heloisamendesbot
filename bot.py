@@ -31,14 +31,14 @@ PRODUTOS = {
         "valor_exibicao": "5,00",
         "nome": "Pack de Fotos",
         "descricao": "Aqui estão as fotos mais ousadas...",
-        "entrega": "COLE_SEU_LINK_AQUI_FOTOS"
+        "entrega": "https://drive.google.com/drive/folders/1GPPoCyVd2k1XgEC_WWrzi43LciSlVtQF?usp=sharing"
     },
     "videos": {
         "valor_centavos": 1200,
         "valor_exibicao": "12,00",
         "nome": "Pack de Vídeos",
         "descricao": "Vídeos exclusivos esperando por você...",
-        "entrega": "COLE_SEU_LINK_AQUI_VIDEOS"
+        "entrega": "https://drive.google.com/drive/folders/1M7UtYvfNt5Ue_m43RnLLyhCRNZ0txAwM?usp=sharing"
     }
 }
 
