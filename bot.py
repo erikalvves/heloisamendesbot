@@ -28,10 +28,16 @@ PURINCASH_CALLBACK_URL = os.getenv("PURINCASH_CALLBACK_URL")
 PRODUTOS = {
     "fotos": {
         "valor_centavos": 500,
+        "valor_exibicao": "5,00",
+        "nome": "Pack de Fotos",
+        "descricao": "Aqui estão as fotos mais ousadas...",
         "entrega": "COLE_SEU_LINK_AQUI_FOTOS"
     },
     "videos": {
         "valor_centavos": 1200,
+        "valor_exibicao": "12,00",
+        "nome": "Pack de Vídeos",
+        "descricao": "Vídeos exclusivos esperando por você...",
         "entrega": "COLE_SEU_LINK_AQUI_VIDEOS"
     }
 }
@@ -139,7 +145,7 @@ def criar_pagamento_pix(usuario_id, produto_id):
         print(f"❌ Erro: {e}")
         return None
 
-# ================= MENSAGEM INICIAL CERTA! =================
+# ================= MENSAGEM INICIAL =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = (
         "😈💋 Olá, safado… Veio me procurar, né? KKKK 🤭🔥\n"
@@ -153,49 +159,74 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(texto, reply_markup=InlineKeyboardMarkup(teclado))
 
-# ================= COMPRAS =================
+# ================= FLUXO DE COMPRA COM CONFIRMAÇÃO =================
 async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     user_id = str(update.effective_user.id)
 
-    if query.data == "comprar_fotos":
-        produto_id = "fotos"
-        nome = "Pack de Fotos"
-        valor = "5,00"
-    elif query.data == "comprar_videos":
-        produto_id = "videos"
-        nome = "Pack de Vídeos"
-        valor = "12,00"
-    else:
+    # 1️⃣ Usuário escolheu o produto → mostra prévia + confirmação
+    if query.data.startswith("comprar_"):
+        produto_id = query.data.replace("comprar_", "")
+        prod = PRODUTOS[produto_id]
+        
+        texto = (
+            f"📦 {prod['nome']}\n"
+            f"💰 Valor: R$ {prod['valor_exibicao']}\n\n"
+            f"{prod['descricao']}\n\n"
+            "Confirma a compra?"
+        )
+        
+        teclado = [
+            [
+                InlineKeyboardButton("✅ Confirmar", callback_data=f"confirmar_{produto_id}"),
+                InlineKeyboardButton("← Voltar", callback_data="inicio")
+            ]
+        ]
+        
+        await query.edit_message_text(
+            texto,
+            reply_markup=InlineKeyboardMarkup(teclado)
+        )
         return
 
-    await query.edit_message_text(
-        f"✅ {nome} selecionado!\n"
-        f"Valor: R$ {valor}\n\n"
-        "Gerando seu código PIX..."
-    )
-
-    pix = criar_pagamento_pix(user_id, produto_id)
-
-    if pix and "id" in pix and "qr_code" in pix:
-        registrar_pedido(pix["id"], user_id, produto_id)
+    # 2️⃣ Usuário confirmou → gera o PIX
+    if query.data.startswith("confirmar_"):
+        produto_id = query.data.replace("confirmar_", "")
+        prod = PRODUTOS[produto_id]
+        
         await query.edit_message_text(
-            f"✅ Pagamento gerado!\n\n"
-            f"📦 {nome}\n"
-            f"💰 Valor: R$ {valor}\n\n"
-            "📱 Escaneie o QR Code ou copie o código abaixo:"
+            f"✅ {prod['nome']} confirmado!\n"
+            f"Valor: R$ {prod['valor_exibicao']}\n\n"
+            "Gerando seu código PIX..."
         )
-        await context.bot.send_message(
-            chat_id=update.effective_user.id,
-            text=f"`{pix['qr_code']}`",
-            parse_mode="Markdown"
-        )
-    else:
-        await query.edit_message_text(
-            "❌ Erro ao gerar pagamento.\n"
-            "Verifique as chaves da PurinCash e tente novamente."
-        )
+
+        pix = criar_pagamento_pix(user_id, produto_id)
+
+        if pix and "id" in pix and "qr_code" in pix:
+            registrar_pedido(pix["id"], user_id, produto_id)
+            await query.edit_message_text(
+                f"✅ Pagamento gerado!\n\n"
+                f"📦 {prod['nome']}\n"
+                f"💰 Valor: R$ {prod['valor_exibicao']}\n\n"
+                "📱 Escaneie o QR Code ou copie o código abaixo:"
+            )
+            await context.bot.send_message(
+                chat_id=update.effective_user.id,
+                text=f"`{pix['qr_code']}`",
+                parse_mode="Markdown"
+            )
+        else:
+            await query.edit_message_text(
+                "❌ Erro ao gerar pagamento.\n"
+                "Verifique as chaves da PurinCash e tente novamente."
+            )
+        return
+
+    # 3️⃣ Voltar ao início
+    if query.data == "inicio":
+        await start(update, context)
+        return
 
 # ================= WEBHOOK =================
 @app.route("/webhook-purincash", methods=["POST"])
