@@ -230,7 +230,14 @@ def main():
     application.add_handler(CallbackQueryHandler(processo_compra))
     
     print("✅ Bot rodando! Aguardando mensagens...")
-    application.run_polling(drop_pending_updates=True)
+    
+    # Resolve o conflito de uma vez
+    application.run_polling(
+        drop_pending_updates=True,
+        close_loop=True,
+        allowed_updates=["message", "callback_query"],
+        bootstrap_retries=0
+    )
 
 if __name__ == "__main__":
     main()
