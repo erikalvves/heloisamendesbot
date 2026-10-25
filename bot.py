@@ -24,7 +24,7 @@ PURINCASH_API_KEY = os.getenv("PURINCASH_API_KEY")
 PURINCASH_WEBHOOK_SECRET = os.getenv("PURINCASH_WEBHOOK_SECRET", "")
 PURINCASH_CALLBACK_URL = os.getenv("PURINCASH_CALLBACK_URL")
 
-# ================= PRODUTOS — EXATAMENTE COMO ERA =================
+# ================= PRODUTOS =================
 PRODUTOS = {
     "fotos": {
         "valor_centavos": 500,
@@ -102,7 +102,7 @@ def validar_assinatura(corpo_requisicao, assinatura_recebida):
     ).hexdigest()
     return hmac.compare_digest(assinatura_esperada, assinatura_recebida)
 
-# ================= FUNÇÃO CRIAR PIX =================
+# ================= CRIAR PAGAMENTO =================
 def criar_pagamento_pix(usuario_id, produto_id):
     try:
         url = "https://api.purincash.com/v1/payment"
@@ -113,6 +113,10 @@ def criar_pagamento_pix(usuario_id, produto_id):
             "Content-Type": "application/json"
         }
 
+        if not PURINCASH_API_KEY:
+            print("❌ PURINCASH_API_KEY não configurada!")
+            return None
+
         dados = {
             "amount": valor,
             "currency": "BRL",
@@ -121,22 +125,27 @@ def criar_pagamento_pix(usuario_id, produto_id):
             "external_id": str(usuario_id)
         }
 
+        print(f"📤 Enviando: {dados}")
         resposta = requests.post(url, json=dados, headers=headers, timeout=30)
         print(f"📡 Status: {resposta.status_code}")
+        
         if resposta.status_code != 200:
             print(f"📥 Erro: {resposta.text}")
-        resposta.raise_for_status()
+            return None
+            
         return resposta.json()
 
     except Exception as e:
-        print(f"❌ Erro ao criar PIX: {e}")
+        print(f"❌ Erro: {e}")
         return None
 
-# ================= COMANDOS DO BOT =================
+# ================= MENSAGEM INICIAL CERTA! =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = (
-        "👋 Olá! Bem-vindo!\n\n"
-        "Escolha o que deseja abaixo:"
+        "😈💋 Olá, safado… Veio me procurar, né? KKKK 🤭🔥\n"
+        "Aqui você encontra meus packs +18 com as fotos e vídeos mais ousados… "
+        "vem matar essa curiosidade 😏🍑🔞\n\n"
+        "Escolha o produto que deseja:"
     )
     teclado = [
         [InlineKeyboardButton("📸 Pack de Fotos — R$ 5,00", callback_data="comprar_fotos")],
@@ -144,6 +153,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     await update.message.reply_text(texto, reply_markup=InlineKeyboardMarkup(teclado))
 
+# ================= COMPRAS =================
 async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -184,7 +194,7 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await query.edit_message_text(
             "❌ Erro ao gerar pagamento.\n"
-            "Tente novamente mais tarde."
+            "Verifique as chaves da PurinCash e tente novamente."
         )
 
 # ================= WEBHOOK =================
