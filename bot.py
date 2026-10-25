@@ -1,12 +1,6 @@
 import os
-import sys
 import sqlite3
 from datetime import datetime
-
-# Garante que o terminal Windows suporte UTF-8 com emojis
-if sys.stdout.encoding != 'utf-8':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -15,7 +9,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes
 )
-from create_pix import gerar_cobranca, PRODUTOS
+from create_pix import gerar_cobranca, registrar_pedido, PRODUTOS
 
 load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -39,23 +33,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-def registrar_pedido(dados):
-    conn = sqlite3.connect("pedidos.db")
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO pedidos
-        (paymentId, usuario_id, produto_id, valor_centavos, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        dados["paymentId"],
-        dados["usuario_id"],
-        dados["produto_id"],
-        dados["valor_centavos"],
-        "pendente"
-    ))
-    conn.commit()
-    conn.close()
-
 init_db()
 
 # === MENSAGEM INICIAL ===
@@ -71,23 +48,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# === FLUXO COMPLETO COM PRÉVIA DE MÍDIA ===
+# === FLUXO COMPLETO ===
 async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    print(f"[CLIQUE] {query.data}")  # Debug — aparece no terminal
+    print(f"🔹 Clique recebido: {query.data}")
 
     # ==========================================
-    # PASSO 1 — PRÉVIA PRIMEIRO
+    # PASSO 1 — PRÉVIA
     # ==========================================
     if query.data.startswith("confirmar:"):
         _, produto_id = query.data.split(":")
         context.user_data["produto_escolhido"] = produto_id
+        print(f"🔹 Produto: {produto_id}")
 
         if produto_id == "fotos":
-            # Apaga a mensagem com os botões
             await query.delete_message()
-
             try:
                 with open("previa_fotos.jpg", "rb") as foto:
                     await context.bot.send_photo(
@@ -105,7 +81,6 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         parse_mode="Markdown"
                     )
             except FileNotFoundError:
-                print("[AVISO] previa_fotos.jpg nao encontrada. Enviando texto.")
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=(
@@ -115,13 +90,11 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "✨ As mais ousadas e sensuais 🔥\n"
                         "✨ Nada censurado 🔞\n"
                         "✨ Tudo enviado na hora!\n\n"
-                        "💰 Valor: R$ 5,00\n\n"
-                        "⚠️ (Imagem de amostra em atualização)"
+                        "💰 Valor: R$ 5,00"
                     ),
                     parse_mode="Markdown"
                 )
 
-            # Botões aparecem DEPOIS da prévia
             keyboard = [
                 [InlineKeyboardButton("✅ Sim, quero comprar!", callback_data="comprar:fotos")],
                 [InlineKeyboardButton("❌ Só olhando por agora", callback_data="sair")]
@@ -135,27 +108,28 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if produto_id == "videos":
             await query.delete_message()
-
+            
+            # LINK DO SEU VÍDEO — JÁ PRONTO!
+            link_video = "https://drive.google.com/uc?export=download&id=1B4rF-9jALMyToUa3_BbirJbIVXlmYVah"
+            
             try:
-                print("[DEBUG] Tentando enviar video...")
-                with open("previa_videos.mp4", "rb") as video:
-                    await context.bot.send_video(
-                        chat_id=update.effective_chat.id,
-                        video=video,
-                        caption=(
-                            "🎬 *Prévia — Pack de Vídeos*\n"
-                            "━━━━━━━━━━━━━━━━━━━━━━\n"
-                            "🔥 Vídeos longos e bem quentes\n"
-                            "✨ Momentos mais íntimos e reais\n"
-                            "✨ Tudo sem cortes 🔞\n"
-                            "✨ Acesso imediato após pagamento\n\n"
-                            "💰 Valor: R$ 12,00"
-                        ),
-                        parse_mode="Markdown"
-                    )
-                print("[DEBUG] Video enviado com sucesso!")
+                await context.bot.send_video(
+                    chat_id=update.effective_chat.id,
+                    video=link_video,
+                    caption=(
+                        "🎬 *Prévia — Pack de Vídeos*\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "🔥 Vídeos longos e bem quentes\n"
+                        "✨ Momentos mais íntimos e reais\n"
+                        "✨ Tudo sem cortes 🔞\n"
+                        "✨ Acesso imediato após pagamento\n\n"
+                        "💰 Valor: R$ 12,00"
+                    ),
+                    parse_mode="Markdown",
+                    supports_streaming=True
+                )
             except Exception as e:
-                print(f"[ERRO] Falha ao enviar video: {e}")
+                print(f"⚠️ Vídeo carregando por link: {e}")
                 await context.bot.send_message(
                     chat_id=update.effective_chat.id,
                     text=(
@@ -165,8 +139,9 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         "✨ Momentos mais íntimos e reais\n"
                         "✨ Tudo sem cortes 🔞\n"
                         "✨ Acesso imediato após pagamento\n\n"
-                        "💰 Valor: R$ 12,00\n\n"
-                        "⚠️ Vídeo de amostra em breve… já garante o seu! 😈"
+                        "🎞️ Assista aqui:\n"
+                        "👉 https://drive.google.com/file/d/1B4rF-9jALMyToUa3_BbirJbIVXlmYVah/view?usp=sharing\n\n"
+                        "💰 Valor: R$ 12,00"
                     ),
                     parse_mode="Markdown"
                 )
@@ -183,7 +158,7 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
     # ==========================================
-    # PASSO 2 — GERA PAGAMENTO APÓS CONFIRMAR
+    # PASSO 2 — GERAR PAGAMENTO
     # ==========================================
     if query.data.startswith("comprar:"):
         _, produto_id = query.data.split(":")
@@ -229,7 +204,8 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if qr_b64:
             import base64
             from io import BytesIO
-            imagem = BytesIO(base64.b64decode(qr_b64.replace("data:image/png;base64,", "")))
+            qr_limpo = qr_b64.replace("data:image/png;base64,", "")
+            imagem = BytesIO(base64.b64decode(qr_limpo))
             await context.bot.send_photo(
                 chat_id=update.effective_chat.id,
                 photo=imagem,
@@ -238,7 +214,7 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ==========================================
-    # PASSO 3 — DESISTIU
+    # PASSO 3 — DESISTIR
     # ==========================================
     if query.data == "sair":
         await query.edit_message_text(
@@ -246,11 +222,15 @@ async def processo_compra(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-if __name__ == "__main__":
+# === INICIAR O BOT ===
+def main():
     application = ApplicationBuilder().token(BOT_TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(processo_compra, pattern=r"^(confirmar:|comprar:|sair)$"))
+    application.add_handler(CallbackQueryHandler(processo_compra))
     
-    print("✅ Bot rodando na nuvem! Aguardando mensagens...")
+    print("✅ Bot rodando! Aguardando mensagens...")
     application.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()
